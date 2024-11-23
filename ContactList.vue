@@ -34,3 +34,49 @@
   </div>
 </template>
 
+
+<script>
+import axios from 'axios';
+
+export default {
+  data() {
+    return {
+      form: {
+        name: '',
+        phone: '',
+        email: '',
+        social: '',
+        address: '',
+      },
+      contacts: [],
+    };
+  },
+  methods: {
+    async fetchContacts() {
+      const res = await axios.get('http://localhost:3000/api/contacts');
+      this.contacts = res.data;
+    },
+    async addContact() {
+      await axios.post('http://localhost:3000/api/contacts', this.form);
+      this.fetchContacts();
+      this.resetForm();
+    },
+    async deleteContact(index) {
+      await axios.delete(`http://localhost:3000/api/contacts/${index}`);
+      this.fetchContacts();
+    },
+    resetForm() {
+      this.form = {
+        name: '',
+        phone: '',
+        email: '',
+        social: '',
+        address: '',
+      };
+    },
+  },
+  mounted() {
+    this.fetchContacts();
+  },
+};
+</script>
