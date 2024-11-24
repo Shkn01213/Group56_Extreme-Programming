@@ -16,12 +16,10 @@
         <el-button size="small" type="primary">Or Click to Import Contacts</el-button>
       </div>
     </el-upload>
-
     <!-- 导出按钮 -->
     <el-button size="small" type="primary" @click="exportContacts">
       Export Contacts
     </el-button>
-
     <!-- 搜索框 -->
     <el-input
       v-model="searchQuery"
@@ -70,15 +68,83 @@
         </template>
       </el-table-column>
 
-      <!-- 其他列 -->
-      <el-table-column prop="name" label="Name"></el-table-column>
-      <el-table-column prop="phone" label="Phone"></el-table-column>
-      <el-table-column prop="email" label="Email"></el-table-column>
-      <el-table-column prop="social" label="Social"></el-table-column>
-      <el-table-column prop="address" label="Address"></el-table-column>
+      <!-- 编辑列：名称 -->
+      <el-table-column prop="name" label="Name">
+        <template #default="scope">
+          <el-input
+            v-if="editingRow === scope.row.id"
+            v-model="scope.row.name"
+            @blur="saveContact(scope.row)"
+          ></el-input>
+          <span v-else>{{ scope.row.name }}</span>
+        </template>
+      </el-table-column>
+
+      <!-- 编辑列：电话号码 -->
+      <el-table-column prop="phone" label="Phone">
+        <template #default="scope">
+          <el-input
+            v-if="editingRow === scope.row.id"
+            v-model="scope.row.phone"
+            @blur="saveContact(scope.row)"
+          ></el-input>
+          <span v-else>{{ scope.row.phone }}</span>
+        </template>
+      </el-table-column>
+
+      <!-- 编辑列：电子邮件 -->
+      <el-table-column prop="email" label="Email">
+        <template #default="scope">
+          <el-input
+            v-if="editingRow === scope.row.id"
+            v-model="scope.row.email"
+            @blur="saveContact(scope.row)"
+          ></el-input>
+          <span v-else>{{ scope.row.email }}</span>
+        </template>
+      </el-table-column>
+
+      <!-- 编辑列：社交媒体 -->
+      <el-table-column prop="social" label="Social">
+        <template #default="scope">
+          <el-input
+            v-if="editingRow === scope.row.id"
+            v-model="scope.row.social"
+            @blur="saveContact(scope.row)"
+          ></el-input>
+          <span v-else>{{ scope.row.social }}</span>
+        </template>
+      </el-table-column>
+
+      <!-- 编辑列：住址 -->
+      <el-table-column prop="address" label="Address">
+        <template #default="scope">
+          <el-input
+            v-if="editingRow === scope.row.id"
+            v-model="scope.row.address"
+            @blur="saveContact(scope.row)"
+          ></el-input>
+          <span v-else>{{ scope.row.address }}</span>
+        </template>
+      </el-table-column>
+
+      <!-- 操作列 -->
       <el-table-column label="Actions">
         <template #default="scope">
-          <el-button type="primary" @click="editContact(scope.row.id)">Edit</el-button>
+          <el-button
+            v-if="editingRow !== scope.row.id"
+            type="primary"
+            @click="startEditing(scope.row.id)"
+          >
+            Edit
+          </el-button>
+          <el-button
+            v-else
+            type="success"
+            @click="stopEditing"
+          >
+            Done
+          </el-button>
           <el-button type="danger" @click="deleteContact(scope.row.id)">Delete</el-button>
         </template>
       </el-table-column>
@@ -102,25 +168,23 @@ export default {
         social: "",
         address: "",
       },
-      contacts: [], // 确保 contacts 被正确初始化为数组
+      contacts: [], 
       searchQuery: "",
       showFavoritesOnly: false,
+      editingRow: null, // 当前正在编辑的行
     };
   },
   computed: {
     filteredContacts() {
-      let filtered = this.contacts || []; // 确保 contacts 始终为数组
-
+      let filtered = this.contacts || [];
       if (this.showFavoritesOnly) {
         filtered = filtered.filter((contact) => contact.is_favorite === 1);
       }
-
       if (this.searchQuery.trim() !== "") {
         filtered = filtered.filter((contact) =>
           contact.name.toLowerCase().includes(this.searchQuery.toLowerCase())
         );
       }
-
       return filtered;
     },
   },
@@ -130,22 +194,27 @@ export default {
         const res = await axios.get("http://localhost:3000/api/contacts");
         this.contacts = res.data.map((contact) => ({
           ...contact,
-          is_favorite: contact.is_favorite || 0, // 确保 is_favorite 字段存在
+          is_favorite: contact.is_favorite || 0,
         }));
       } catch (error) {
         console.error("Failed to fetch contacts:", error);
         this.$message.error("Failed to fetch contacts.");
       }
     },
-    async updateFavorite(contact) {
+    startEditing(rowId) {
+      this.editingRow = rowId;
+    },
+    stopEditing() {
+      this.editingRow = null;
+    },
+    async saveContact(contact) {
       try {
-        await axios.put(`http://localhost:3000/api/contacts/${contact.id}/favorite`, {
-          is_favorite: contact.is_favorite,
-        });
-        this.$message.success(`Contact ${contact.name} favorite status updated!`);
+        await axios.put(`http://localhost:3000/api/contacts/${contact.id}`, contact);
+        this.$message.success("Contact updated successfully!");
+        this.stopEditing();
       } catch (error) {
-        console.error("Failed to update favorite status:", error);
-        this.$message.error("Failed to update favorite status.");
+        console.error("Failed to save contact:", error);
+        this.$message.error("Failed to save contact.");
       }
     },
     async addContact() {
@@ -174,56 +243,6 @@ export default {
         this.$message.error("Failed to delete contact.");
       }
     },
-    async handleFileChange(file) {
-      if (!file.raw) {
-        console.error("No raw file data found.");
-        this.$message.error("Invalid file format.");
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const arrayBuffer = e.target.result;
-          const workbook = XLSX.read(arrayBuffer, { type: "array" });
-          const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-          const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-          const contacts = data.slice(1).map((row) => ({
-            name: row[0] || "",
-            phone: row[1] || "",
-            email: row[2] || "",
-            social: row[3] || "",
-            address: row[4] || "",
-          }));
-
-          await axios.post("http://localhost:3000/api/contacts/import", { contacts });
-          this.fetchContacts();
-          this.$message.success("Contacts imported successfully!");
-        } catch (error) {
-          console.error("Error processing file:", error);
-          this.$message.error("Failed to import contacts.");
-        }
-      };
-
-      reader.readAsArrayBuffer(file.raw);
-    },
-    exportContacts() {
-      try {
-        const ws = XLSX.utils.json_to_sheet(this.contacts);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Contacts");
-        const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-        saveAs(
-          new Blob([wbout], { type: "application/octet-stream" }),
-          "contacts.xlsx"
-        );
-        this.$message.success("Contacts exported successfully!");
-      } catch (error) {
-        console.error("Failed to export contacts:", error);
-        this.$message.error("Failed to export contacts.");
-      }
-    },
     resetForm() {
       this.form = {
         name: "",
@@ -233,13 +252,55 @@ export default {
         address: "",
       };
     },
+    exportContacts() {
+      const ws = XLSX.utils.json_to_sheet(this.contacts);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Contacts");
+      const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      saveAs(
+        new Blob([wbout], { type: "application/octet-stream" }),
+        "contacts.xlsx"
+      );
+      this.$message.success("Contacts exported successfully!");
+    },
+    async handleFileChange(file) {
+      if (!file.raw) return;
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const arrayBuffer = e.target.result;
+        const workbook = XLSX.read(arrayBuffer, { type: "array" });
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        const contacts = data.slice(1).map((row) => ({
+          name: row[0] || "",
+          phone: row[1] || "",
+          email: row[2] || "",
+          social: row[3] || "",
+          address: row[4] || "",
+        }));
+        await axios.post("http://localhost:3000/api/contacts/import", { contacts });
+        this.fetchContacts();
+        this.$message.success("Contacts imported successfully!");
+      };
+      reader.readAsArrayBuffer(file.raw);
+    },
+    async updateFavorite(contact) {
+      try {
+        await axios.put(`http://localhost:3000/api/contacts/${contact.id}/favorite`, {
+          is_favorite: contact.is_favorite,
+        });
+        this.$message.success(`Contact ${contact.name} favorite status updated!`);
+      } catch (error) {
+        console.error("Failed to update favorite status:", error);
+        this.$message.error("Failed to update favorite status.");
+      }
+    },
   },
   mounted() {
     this.fetchContacts();
   },
 };
 </script>
-
 <style scoped>
 .add-contact-form {
   margin-bottom: 30px;
