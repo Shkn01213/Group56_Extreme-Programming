@@ -29,9 +29,15 @@
       prefix-icon="el-icon-search"
       class="mb-5"
     ></el-input>
+    <el-switch
+      v-model="showFavoritesOnly"
+      active-text="Show Favorites Only"
+      inactive-text="Show All"
+      class="mb-5"
+    ></el-switch>
 
     <!-- 添加联系人表单 -->
-    <el-form :model="form" label-width="80px" class="mb-4">
+    <el-form :model="form" label-width="80px" class="mb-4 add-contact-form">
       <el-form-item label="Name" :required="true">
         <el-input v-model="form.name" placeholder="Enter name"></el-input>
       </el-form-item>
@@ -52,6 +58,19 @@
 
     <!-- 联系人列表 -->
     <el-table :data="filteredContacts" border>
+      <!-- 收藏列 -->
+      <el-table-column label="Favorite">
+        <template #default="scope">
+          <el-switch
+            v-model="scope.row.is_favorite"
+            :active-value="1"
+            :inactive-value="0"
+            @change="updateFavorite(scope.row)"
+          ></el-switch>
+        </template>
+      </el-table-column>
+
+      <!-- 其他列 -->
       <el-table-column prop="name" label="Name"></el-table-column>
       <el-table-column prop="phone" label="Phone"></el-table-column>
       <el-table-column prop="email" label="Email"></el-table-column>
@@ -83,25 +102,50 @@ export default {
         social: "",
         address: "",
       },
-      contacts: [],
+      contacts: [], // 确保 contacts 被正确初始化为数组
       searchQuery: "",
+      showFavoritesOnly: false,
     };
   },
   computed: {
     filteredContacts() {
-      return this.contacts.filter((contact) =>
-        contact.name.toLowerCase().includes(this.searchQuery.toLowerCase())
-      );
+      let filtered = this.contacts || []; // 确保 contacts 始终为数组
+
+      if (this.showFavoritesOnly) {
+        filtered = filtered.filter((contact) => contact.is_favorite === 1);
+      }
+
+      if (this.searchQuery.trim() !== "") {
+        filtered = filtered.filter((contact) =>
+          contact.name.toLowerCase().includes(this.searchQuery.toLowerCase())
+        );
+      }
+
+      return filtered;
     },
   },
   methods: {
     async fetchContacts() {
       try {
         const res = await axios.get("http://localhost:3000/api/contacts");
-        this.contacts = res.data;
+        this.contacts = res.data.map((contact) => ({
+          ...contact,
+          is_favorite: contact.is_favorite || 0, // 确保 is_favorite 字段存在
+        }));
       } catch (error) {
         console.error("Failed to fetch contacts:", error);
         this.$message.error("Failed to fetch contacts.");
+      }
+    },
+    async updateFavorite(contact) {
+      try {
+        await axios.put(`http://localhost:3000/api/contacts/${contact.id}/favorite`, {
+          is_favorite: contact.is_favorite,
+        });
+        this.$message.success(`Contact ${contact.name} favorite status updated!`);
+      } catch (error) {
+        console.error("Failed to update favorite status:", error);
+        this.$message.error("Failed to update favorite status.");
       }
     },
     async addContact() {
@@ -196,14 +240,12 @@ export default {
 };
 </script>
 
-
-
 <style scoped>
-.search-input {
-  margin-bottom: 20px;
-}
-
 .add-contact-form {
   margin-bottom: 30px;
+  background-color: #f9f9f9;
+  padding: 20px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
 }
 </style>
