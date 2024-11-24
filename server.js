@@ -13,10 +13,10 @@ app.use(express.json());
 
 // 创建 MySQL 连接池，直接硬编码数据库配置
 const db = mysql.createPool({
-  host: 'localhost',           // 替换为您的 MySQL 主机名
-  user: 'root',                // 替换为您的 MySQL 用户名
-  password: '123456',   // 替换为您的 MySQL 密码
-  database: 'contacts_db',     // 替换为您的数据库名称
+  host: 'localhost',          
+  user: 'root',                
+  password: '123456',   
+  database: 'contacts_db',     
 });
 
 // 测试数据库连接
@@ -130,6 +130,29 @@ app.get('/api/contacts/export', (req, res) => {
       // 删除服务器上的临时文件
       fs.unlink(filePath, () => {});
     });
+  });
+});
+// 更新联系人收藏状态
+app.put('/api/contacts/:id/favorite', (req, res) => {
+  const id = parseInt(req.params.id);
+  const { is_favorite } = req.body; // 传入新的收藏状态
+  const query = 'UPDATE contacts SET is_favorite = ? WHERE id = ?';
+
+  db.query(query, [is_favorite, id], (err) => {
+    if (err) {
+      res.status(500).send('Failed to update favorite status');
+    } else {
+      res.send('Favorite status updated');
+    }
+  });
+});
+app.get('/api/contacts', (req, res) => {
+  db.query('SELECT * FROM contacts', (err, results) => {
+    if (err) {
+      res.status(500).send('Failed to fetch contacts');
+    } else {
+      res.json(results); // 返回所有联系人，包括 is_favorite 字段
+    }
   });
 });
 
